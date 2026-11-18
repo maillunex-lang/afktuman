@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 env:
   GODOT_VERSION: 4.7.2-stable
@@ -60,3 +60,22 @@ jobs:
             dist/TumanPrototype.exe
             dist/TumanPrototype.pck
           if-no-files-found: error
+      - name: Package portable Windows ZIP
+        if: github.event_name != 'pull_request'
+        shell: bash
+        run: |
+          cd dist
+          zip -q TumanPrototype-Windows-x64.zip TumanPrototype.exe TumanPrototype.pck
+          unzip -t TumanPrototype-Windows-x64.zip
+      - name: Publish public GitHub Release
+        if: github.event_name != 'pull_request'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          tag="prototype-${GITHUB_SHA:0:12}"
+          gh release create "$tag" "dist/TumanPrototype-Windows-x64.zip" \
+            --title "Туман Windows prototype ${GITHUB_SHA:0:12}" \
+            --notes "Автоматическая тестовая Windows x64 сборка. Распакуй ZIP и запусти TumanPrototype.exe. Прозрачность и click-through требуют проверки на Windows." \
+            --target "$GITHUB_SHA" \
+            --latest
