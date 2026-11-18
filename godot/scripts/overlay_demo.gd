@@ -156,7 +156,7 @@ func _load_progress() -> void:
     if file == null:
         push_warning("Tuman: could not read save.json")
         return
-    var parsed := JSON.parse_string(file.get_as_text())
+    var parsed: Variant = JSON.parse_string(file.get_as_text())
     file.close()
     if not (parsed is Dictionary):
         push_warning("Tuman: invalid save.json, starting new progress")
