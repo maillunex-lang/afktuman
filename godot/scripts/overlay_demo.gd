@@ -2,12 +2,13 @@ extends Node2D
 ## Prototype-only: transparent window and stylized sprayer drawn from primitives.
 ## The overlay becomes click-through only after a separate, always-accessible control window exists.
 
-const SPEED := 85.0
-const WINDOW_WIDTH := 720
-const WINDOW_HEIGHT := 160
-const EDGE_MARGIN := 8
+const SPEED := 52.0
+const SPRAYER_SCALE := 0.48
+const WINDOW_WIDTH := 440
+const WINDOW_HEIGHT := 64
+const EDGE_MARGIN := 2
 var last_usable_rect := Rect2i()
-var tractor_x := 80.0
+var tractor_x := 30.0
 var direction := 1.0
 var wheel_phase := 0.0
 var overlay_enabled := true
@@ -40,8 +41,8 @@ func _process(delta: float) -> void:
         return
     tractor_x += direction * SPEED * delta
     wheel_phase += delta * 8.0
-    if tractor_x > float(WINDOW_WIDTH) - 125.0:
-        tractor_x = float(WINDOW_WIDTH) - 125.0
+    if tractor_x > float(WINDOW_WIDTH) - 105.0:
+        tractor_x = float(WINDOW_WIDTH) - 105.0
         direction = -1.0
     elif tractor_x < 15.0:
         tractor_x = 15.0
@@ -56,21 +57,35 @@ func _draw() -> void:
     if not overlay_enabled:
         return
     var x := tractor_x
-    var y := 83.0
-    draw_set_transform(Vector2(x + 65.0, y), 0.0, Vector2(direction, 1.0))
-    draw_rect(Rect2(-58, -12, 116, 34), Color("ef9b1b"))
-    draw_rect(Rect2(-28, -36, 47, 27), Color("f8bc4d"))
-    draw_rect(Rect2(-21, -31, 29, 17), Color("9ad6e2"))
-    draw_rect(Rect2(20, -27, 34, 20), Color("e4aa30"))
-    draw_line(Vector2(55, 4), Vector2(90, 4), Color("a16a25"), 3.0)
-    draw_line(Vector2(90, 4), Vector2(90, 19), Color("a16a25"), 3.0)
-    for wheel_x in [-34.0, 37.0]:
-        draw_circle(Vector2(wheel_x, 25), 13.0, Color("28333e"))
-        draw_circle(Vector2(wheel_x, 25), 5.0, Color("b7bec7"))
-        draw_line(Vector2(wheel_x, 25), Vector2(wheel_x + cos(wheel_phase) * 9.0, 25 + sin(wheel_phase) * 9.0), Color("d9e1e9"), 2.0)
+    # Compact sprayer: wheel bottoms sit just 5-6 px above the taskbar.
+    var y := 36.0
+    draw_set_transform(Vector2(x + 55.0, y), 0.0, Vector2(direction * SPRAYER_SCALE, SPRAYER_SCALE))
+    # Rounded orange chassis, slimmer cabin, glass, tank and folding boom.
+    draw_colored_polygon(PackedVector2Array([
+        Vector2(-57, -7), Vector2(-50, -16), Vector2(43, -16),
+        Vector2(55, -7), Vector2(53, 13), Vector2(-56, 13)
+    ]), Color("ed8c17"))
+    draw_rect(Rect2(-47, 5, 92, 7), Color("c66c14"))
+    draw_colored_polygon(PackedVector2Array([
+        Vector2(-28, -15), Vector2(-22, -49), Vector2(9, -49),
+        Vector2(21, -15)
+    ]), Color("f5b43d"))
+    draw_colored_polygon(PackedVector2Array([
+        Vector2(-18, -43), Vector2(6, -43), Vector2(14, -20),
+        Vector2(-23, -20)
+    ]), Color("8bd0dc"))
+    draw_line(Vector2(-4, -42), Vector2(-4, -21), Color("d5f4f4"), 2.0)
+    draw_rect(Rect2(24, -35, 29, 19), Color("f6bc48"))
+    draw_line(Vector2(51, -9), Vector2(87, -9), Color("666c6a"), 4.0)
+    draw_line(Vector2(86, -9), Vector2(103, -2), Color("747a75"), 3.0)
+    for wheel_x in [-34.0, 36.0]:
+        draw_circle(Vector2(wheel_x, 23), 16.0, Color("242b30"))
+        draw_circle(Vector2(wheel_x, 23), 10.0, Color("39434a"))
+        draw_circle(Vector2(wheel_x, 23), 5.0, Color("d1d7d6"))
+        draw_line(Vector2(wheel_x, 23), Vector2(wheel_x + cos(wheel_phase) * 8.0, 23 + sin(wheel_phase) * 8.0), Color("f1f1df"), 2.0)
     if spray_enabled:
         for i in range(3):
-            draw_circle(Vector2(92 + i * 7, 25 + i * 5), 2.0, Color(0.32, 0.82, 0.75, 0.7))
+            draw_circle(Vector2(94 + i * 6, 12 + i * 7), 2.0, Color(0.35, 0.87, 0.81, 0.5))
     draw_set_transform(Vector2.ZERO)
 
 func _position_above_taskbar() -> void:
