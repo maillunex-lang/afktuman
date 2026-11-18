@@ -22,6 +22,7 @@ var paused := false
 var tray: StatusIndicator
 var tray_menu: PopupMenu
 var tray_available := false
+var sprayer_atlas: Texture2D
 var sprayer_body: Texture2D
 var sprayer_wheels: Array[Texture2D] = []
 
@@ -69,6 +70,10 @@ func _draw() -> void:
     # Wheels visually overlap the taskbar top by a few pixels.
     var y := 30.0
     draw_set_transform(Vector2(x + 55.0, y), 0.0, Vector2(direction * SPRAYER_SCALE, SPRAYER_SCALE))
+    if sprayer_atlas != null:
+        _draw_atlas_sprayer()
+        draw_set_transform(Vector2.ZERO)
+        return
     if sprayer_body != null and sprayer_wheels.size() == 3:
         _draw_layered_sprayer()
         draw_set_transform(Vector2.ZERO)
@@ -253,6 +258,9 @@ func _show_garage() -> void:
 
 func _load_sprite_layers() -> void:
     var root_path := "res://assets/sprayer/"
+    if ResourceLoader.exists(root_path + "atlas.png"):
+        sprayer_atlas = load(root_path + "atlas.png") as Texture2D
+        return
     var body_path := root_path + "body.png"
     if not ResourceLoader.exists(body_path):
         return
@@ -278,4 +286,19 @@ func _draw_layered_sprayer() -> void:
         var wheel_size := 2.0 * 138.0 * width / 1536.0
         draw_set_transform(Vector2(tractor_x + 55.0, 30.0) + Vector2(direction * SPRAYER_SCALE * center.x, SPRAYER_SCALE * center.y), wheel_phase * direction, Vector2(direction * SPRAYER_SCALE, SPRAYER_SCALE))
         draw_texture_rect(sprayer_wheels[i], Rect2(-wheel_size * 0.5, -wheel_size * 0.5, wheel_size, wheel_size), false)
+    draw_set_transform(Vector2(tractor_x + 55.0, 30.0), 0.0, Vector2(direction * SPRAYER_SCALE, SPRAYER_SCALE))
+
+func _draw_atlas_sprayer() -> void:
+    # Atlas: 256x148. Body: 256x102; wheels: 43x43 at x=0,50,100 and y=104.
+    # Draw body at ~100px on screen and animate each wheel separately.
+    var body_rect := Rect2(0, 0, 256, 102)
+    var local_size := Vector2(250, 100)
+    var origin := Vector2(-80, -61)
+    draw_texture_rect_region(sprayer_atlas, Rect2(origin, local_size), body_rect)
+    var centers := [Vector2(609, 442), Vector2(884, 440), Vector2(1266, 442)]
+    for i in range(3):
+        var center := Vector2(origin.x + centers[i].x * local_size.x / 1536.0, origin.y + centers[i].y * local_size.y / 614.0)
+        var size := 43.0
+        draw_set_transform(Vector2(tractor_x + 55.0, 30.0) + Vector2(direction * SPRAYER_SCALE * center.x, SPRAYER_SCALE * center.y), wheel_phase * direction, Vector2(direction * SPRAYER_SCALE, SPRAYER_SCALE))
+        draw_texture_rect_region(sprayer_atlas, Rect2(-size * 0.5, -size * 0.5, size, size), Rect2(i * 50, 104, 43, 43))
     draw_set_transform(Vector2(tractor_x + 55.0, 30.0), 0.0, Vector2(direction * SPRAYER_SCALE, SPRAYER_SCALE))
