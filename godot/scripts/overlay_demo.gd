@@ -3,7 +3,10 @@ extends Node2D
 ## Click-through is intentionally NOT enabled until an independent exit/control path exists.
 
 const SPEED := 85.0
-const WIDTH := 720.0
+const WINDOW_WIDTH := 720
+const WINDOW_HEIGHT := 160
+const EDGE_MARGIN := 8
+var last_usable_rect := Rect2i()
 var tractor_x := 80.0
 var direction := 1.0
 var wheel_phase := 0.0
@@ -15,14 +18,19 @@ func _ready() -> void:
     window.transparent = true
     window.always_on_top = true
     Engine.max_fps = 30
-    # Do not assume the taskbar is at the bottom or DPI is 100%.
-    # Real placement relative to Windows work area is a later, testable step.
+    _position_above_taskbar()
+    # P001: use the Windows usable rectangle instead of assuming screen size/DPI.
+    # The click-through flag remains OFF until an independent control path exists.
 
 func _process(delta: float) -> void:
+    var screen := DisplayServer.window_get_current_screen()
+    var usable := DisplayServer.screen_get_usable_rect(screen)
+    if usable != last_usable_rect:
+        _position_above_taskbar()
     tractor_x += direction * SPEED * delta
     wheel_phase += delta * 8.0
-    if tractor_x > WIDTH - 125.0:
-        tractor_x = WIDTH - 125.0
+    if tractor_x > float(WINDOW_WIDTH) - 125.0:
+        tractor_x = float(WINDOW_WIDTH) - 125.0
         direction = -1.0
     elif tractor_x < 15.0:
         tractor_x = 15.0
@@ -50,3 +58,16 @@ func _draw() -> void:
     for i in range(3):
         draw_circle(Vector2(92 + i * 7, 25 + i * 5), 2.0, Color(0.32, 0.82, 0.75, 0.7))
     draw_set_transform(Vector2.ZERO)
+
+func _position_above_taskbar() -> void:
+    var screen := DisplayServer.window_get_current_screen()
+    var usable := DisplayServer.screen_get_usable_rect(screen)
+    if usable.size.x <= 0 or usable.size.y <= 0:
+        return
+    last_usable_rect = usable
+    var window := get_window()
+    # Anchor to the bottom-right of the usable area, not the monitor boundary.
+    # On non-bottom taskbars this means inside the usable desktop area.
+    var target_x := usable.position.x + max(0, usable.size.x - WINDOW_WIDTH - EDGE_MARGIN)
+    var target_y := usable.position.y + max(0, usable.size.y - WINDOW_HEIGHT - EDGE_MARGIN)
+    window.position = Vector2i(target_x, target_y)
