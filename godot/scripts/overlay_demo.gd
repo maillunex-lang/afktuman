@@ -3,10 +3,11 @@ extends Node2D
 ## The overlay becomes click-through only after a separate, always-accessible control window exists.
 
 const SPEED := 52.0
-const SPRAYER_SCALE := 0.48
+const SPRAYER_SCALE := 0.40
 const WINDOW_WIDTH := 440
-const WINDOW_HEIGHT := 64
+const WINDOW_HEIGHT := 52
 const EDGE_MARGIN := 2
+const TASKBAR_OVERLAP := 14
 var last_usable_rect := Rect2i()
 var tractor_x := 30.0
 var direction := 1.0
@@ -57,8 +58,8 @@ func _draw() -> void:
     if not overlay_enabled:
         return
     var x := tractor_x
-    # Compact sprayer: wheel bottoms sit just 5-6 px above the taskbar.
-    var y := 36.0
+    # Wheels visually overlap the taskbar top by a few pixels.
+    var y := 30.0
     draw_set_transform(Vector2(x + 55.0, y), 0.0, Vector2(direction * SPRAYER_SCALE, SPRAYER_SCALE))
     # Rounded orange chassis, slimmer cabin, glass, tank and folding boom.
     draw_colored_polygon(PackedVector2Array([
@@ -95,10 +96,15 @@ func _position_above_taskbar() -> void:
         return
     last_usable_rect = usable
     var window := get_window()
-    # Anchor to the bottom-right of the usable area, not the monitor boundary.
-    # On non-bottom taskbars this means inside the usable desktop area.
+    # On a bottom-docked Windows taskbar, overlap its top edge slightly.
+    # Other taskbar placements remain inside the usable desktop area.
     var target_x := usable.position.x + maxi(0, usable.size.x - WINDOW_WIDTH - EDGE_MARGIN)
     var target_y := usable.position.y + maxi(0, usable.size.y - WINDOW_HEIGHT - EDGE_MARGIN)
+    var screen_rect := DisplayServer.screen_get_size(screen)
+    var screen_position := DisplayServer.screen_get_position(screen)
+    var bottom_taskbar := usable.end.y < screen_position.y + screen_rect.y
+    if bottom_taskbar:
+        target_y += TASKBAR_OVERLAP
     window.position = Vector2i(target_x, target_y)
 
 func _create_control_window() -> void:
