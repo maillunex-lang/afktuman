@@ -18,6 +18,10 @@ var toggle_button: Button
 var fps_button: Button
 var status_label: Label
 var spray_enabled := true
+var paused := false
+var tray: StatusIndicator
+var tray_menu: PopupMenu
+var tray_available := false
 
 func _ready() -> void:
     get_viewport().transparent_bg = true
@@ -30,6 +34,7 @@ func _ready() -> void:
     if DisplayServer.get_name() == "headless":
         return
     _create_control_window()
+    _create_tray()
     if garage.get_window_id() != DisplayServer.INVALID_WINDOW_ID:
         window.set_flag(Window.FLAG_MOUSE_PASSTHROUGH, true)
 
@@ -38,7 +43,7 @@ func _process(delta: float) -> void:
     var usable := DisplayServer.screen_get_usable_rect(screen)
     if usable != last_usable_rect:
         _position_above_taskbar()
-    if not overlay_enabled:
+    if not overlay_enabled or paused:
         return
     tractor_x += direction * SPEED * delta
     wheel_phase += delta * 8.0
@@ -162,7 +167,8 @@ func _create_control_window() -> void:
     quit_button.text = "Выход из игры"
     quit_button.pressed.connect(func() -> void: get_tree().quit())
     layout.add_child(quit_button)
-    garage.show()
+    if not tray_available:
+        garage.show()
 
 func _toggle_overlay() -> void:
     overlay_enabled = not overlay_enabled
@@ -178,5 +184,62 @@ func _toggle_fps() -> void:
         status_label.text = "Режим: %s | %d FPS" % ["патруль" if overlay_enabled else "скрыт", Engine.max_fps]
 
 func _on_garage_close_requested() -> void:
-    # Closing the control window exits: never strand an unclickable overlay.
-    get_tree().quit()
+    if tray_available:
+        garage.hide()
+    else:
+        get_tree().quit()
+
+func _create_tray() -> void:
+    tray_available = DisplayServer.has_feature(DisplayServer.FEATURE_STATUS_INDICATOR)
+    if not tray_available:
+        return
+    tray_menu = PopupMenu.new()
+    tray_menu.add_item("Открыть гараж", 1)
+    tray_menu.add_item("Пауза патруля", 2)
+    tray_menu.add_separator()
+    tray_menu.add_item("Выход", 3)
+    tray_menu.id_pressed.connect(_on_tray_menu_item)
+    add_child(tray_menu)
+    tray = StatusIndicator.new()
+    tray.tooltip = "ТУМАН: Битва за урожай"
+    tray.icon = _make_tray_icon()
+    tray.menu = tray_menu.get_path()
+    tray.pressed.connect(_on_tray_pressed)
+    add_child(tray)
+
+func _make_tray_icon() -> Texture2D:
+    var img := Image.create(32, 32, false, Image.FORMAT_RGBA8)
+    img.fill(Color.TRANSPARENT)
+    for y in range(10, 23):
+        for x in range(3, 29):
+            img.set_pixel(x, y, Color("f2a32b"))
+    for y in range(4, 11):
+        for x in range(10, 20):
+            img.set_pixel(x, y, Color("69c4d9"))
+    for cx in [9, 24]:
+        for y in range(19, 29):
+            for x in range(cx - 5, cx + 5):
+                if Vector2(x - cx, y - 24).length_squared() < 25:
+                    img.set_pixel(x, y, Color("27333b"))
+    return ImageTexture.create_from_image(img)
+
+func _on_tray_pressed(mouse_button: int, _mouse_position: Vector2i) -> void:
+    if mouse_button == MOUSE_BUTTON_LEFT:
+        _show_garage()
+
+func _on_tray_menu_item(id: int) -> void:
+    match id:
+        1:
+            _show_garage()
+        2:
+            paused = not paused
+            tray_menu.set_item_text(1, "Продолжить патруль" if paused else "Пауза патруля")
+            if is_instance_valid(status_label):
+                status_label.text = "Режим: пауза" if paused else "Режим: патруль"
+        3:
+            get_tree().quit()
+
+func _show_garage() -> void:
+    garage.show()
+    garage.grab_focus()
+
