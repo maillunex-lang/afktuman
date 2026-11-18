@@ -39,6 +39,8 @@ func _ready() -> void:
         return
     _create_control_window()
     _create_tray()
+    if tray_available and OS.get_name() == "Windows":
+        _hide_windows_from_taskbar()
     if garage.get_window_id() != DisplayServer.INVALID_WINDOW_ID:
         window.set_flag(Window.FLAG_MOUSE_PASSTHROUGH, true)
 
@@ -306,3 +308,29 @@ func _draw_atlas_sprayer() -> void:
         draw_set_transform(Vector2(tractor_x + 55.0, 30.0) + Vector2(direction * SPRAYER_SCALE * center.x, SPRAYER_SCALE * center.y), wheel_phase * direction, Vector2(direction * SPRAYER_SCALE, SPRAYER_SCALE))
         draw_texture_rect_region(sprayer_atlas, Rect2(-size * 0.5, -size * 0.5, size, size), Rect2(i * 50, 104, 43, 43))
     draw_set_transform(Vector2(tractor_x + 55.0, 30.0), 0.0, Vector2(direction * SPRAYER_SCALE, SPRAYER_SCALE))
+
+func _hide_windows_from_taskbar() -> void:
+    # Windows-only helper. Keep tray available before hiding taskbar buttons.
+    var source := "res://windows/hide_taskbar.ps1"
+    if not FileAccess.file_exists(source):
+        push_warning("Windows taskbar helper is missing; leaving taskbar buttons visible.")
+        return
+    var script_text := FileAccess.get_file_as_string(source)
+    if script_text.is_empty():
+        return
+    var destination := "user://tuman_hide_taskbar.ps1"
+    var output := FileAccess.open(destination, FileAccess.WRITE)
+    if output == null:
+        push_warning("Cannot write taskbar helper.")
+        return
+    output.store_string(script_text)
+    output.close()
+    var args := PackedStringArray([
+        "-NoProfile", "-NonInteractive", "-WindowStyle", "Hidden",
+        "-ExecutionPolicy", "Bypass", "-File",
+        ProjectSettings.globalize_path(destination),
+        "-TargetPid", str(OS.get_process_id())
+    ])
+    var helper_pid := OS.create_process("powershell.exe", args, false)
+    if helper_pid <= 0:
+        push_warning("Could not start Windows taskbar helper.")
