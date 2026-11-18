@@ -9,7 +9,7 @@ const WINDOW_HEIGHT := 52
 const EDGE_MARGIN := 2
 const TASKBAR_OVERLAP := 14
 var last_usable_rect := Rect2i()
-var tractor_x := 30.0
+var tractor_x := 80.0
 var direction := 1.0
 var wheel_phase := 0.0
 var overlay_enabled := true
@@ -51,11 +51,14 @@ func _process(delta: float) -> void:
         return
     tractor_x += direction * SPEED * delta
     wheel_phase += delta * 8.0
-    if tractor_x > float(WINDOW_WIDTH) - 105.0:
-        tractor_x = float(WINDOW_WIDTH) - 105.0
+    # Center-based movement. Flipping around the center never shifts the sprite.
+    var right_bound := float(WINDOW_WIDTH) - 65.0
+    var left_bound := 65.0
+    if tractor_x >= right_bound:
+        tractor_x = right_bound
         direction = -1.0
-    elif tractor_x < 15.0:
-        tractor_x = 15.0
+    elif tractor_x <= left_bound:
+        tractor_x = left_bound
         direction = 1.0
     queue_redraw()
 
@@ -69,7 +72,7 @@ func _draw() -> void:
     var x := tractor_x
     # Wheels visually overlap the taskbar top by a few pixels.
     var y := 30.0
-    draw_set_transform(Vector2(x + 55.0, y), 0.0, Vector2(direction * SPRAYER_SCALE, SPRAYER_SCALE))
+    draw_set_transform(Vector2(x, y), 0.0, Vector2(direction * SPRAYER_SCALE, SPRAYER_SCALE))
     if sprayer_atlas != null:
         _draw_atlas_sprayer()
         draw_set_transform(Vector2.ZERO)
@@ -179,7 +182,8 @@ func _create_control_window() -> void:
     quit_button.text = "Выход из игры"
     quit_button.pressed.connect(func() -> void: get_tree().quit())
     layout.add_child(quit_button)
-    if not tray_available:
+    # Garage remains hidden when a tray icon is available.
+    if not DisplayServer.has_feature(DisplayServer.FEATURE_STATUS_INDICATOR):
         garage.show()
 
 func _toggle_overlay() -> void:
@@ -277,14 +281,14 @@ func _draw_layered_sprayer() -> void:
     # Draw inside the existing 0.40 transform, producing ~100 px vehicle.
     var width := 250.0
     var height := width * 614.0 / 1536.0
-    var left := -80.0
+    var left := -125.0
     var top := -height + 39.0
     draw_texture_rect(sprayer_body, Rect2(left, top, width, height), false)
     var centers := [Vector2(609, 442), Vector2(884, 440), Vector2(1266, 442)]
     for i in range(3):
         var center := Vector2(left + centers[i].x * width / 1536.0, top + centers[i].y * height / 614.0)
         var wheel_size := 2.0 * 138.0 * width / 1536.0
-        draw_set_transform(Vector2(tractor_x + 55.0, 30.0) + Vector2(direction * SPRAYER_SCALE * center.x, SPRAYER_SCALE * center.y), wheel_phase * direction, Vector2(direction * SPRAYER_SCALE, SPRAYER_SCALE))
+        draw_set_transform(Vector2(tractor_x, 30.0) + Vector2(direction * SPRAYER_SCALE * center.x, SPRAYER_SCALE * center.y), wheel_phase * direction, Vector2(direction * SPRAYER_SCALE, SPRAYER_SCALE))
         draw_texture_rect(sprayer_wheels[i], Rect2(-wheel_size * 0.5, -wheel_size * 0.5, wheel_size, wheel_size), false)
     draw_set_transform(Vector2(tractor_x + 55.0, 30.0), 0.0, Vector2(direction * SPRAYER_SCALE, SPRAYER_SCALE))
 
@@ -293,7 +297,7 @@ func _draw_atlas_sprayer() -> void:
     # Draw body at ~100px on screen and animate each wheel separately.
     var body_rect := Rect2(0, 0, 256, 102)
     var local_size := Vector2(250, 100)
-    var origin := Vector2(-80, -61)
+    var origin := Vector2(-125, -61)
     draw_texture_rect_region(sprayer_atlas, Rect2(origin, local_size), body_rect)
     var centers := [Vector2(609, 442), Vector2(884, 440), Vector2(1266, 442)]
     for i in range(3):
