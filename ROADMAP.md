@@ -7,6 +7,9 @@
 - Windows GUI validation: BLOCKED (нужна реальная Windows-сессия)
 - P001 usable-area positioning: IMPLEMENTED, NOT GUI-VERIFIED
 - P003/P004 separate control window, click-through flag and FPS controls: IMPLEMENTED, NOT GUI-VERIFIED
+- P004: статус, распыление, скрытие и FPS реализованы в коде, GUI не проверен
+- P005: остановка визуального патруля при скрытии реализована, замеры CPU/RAM не проведены
+- P006: создан export_presets.cfg и workflow headless проверки; Windows EXE не собран
 - Полная RPG: TODO (только после проверки прототипа)
 
 ## Задачи
@@ -18,8 +21,14 @@
 | P002 | Временный Туман и патруль | PARTIAL | Спрайт, движение, разворот, распыление на Windows |
 | P003 | Отдельное окно управления + click-through Godot | PARTIAL | Клики проходят через неинтерактивные зоны, управление доступно |
 | P004 | Компактный гараж | PARTIAL | Открытие/закрытие, 30/15 FPS, выход |
-| P005 | Тесты производительности | TODO | Режимы FPS, скрытие, DPI, полноэкранные приложения |
-| P006 | Windows x64 экспорт | TODO | Запуск сборки без редактора Godot |
+| P005 | Управление FPS/скрытием, GUI и нагрузочные тесты | PARTIAL | Режимы FPS, скрытие, DPI, полноэкранные приложения |
+| P006 | Пресет Windows x64 + CI headless | PARTIAL | Запуск сборки без редактора Godot |
+
+## Проверки и сборка
+
+- CI: `.github/workflows/godot-check.yml` (Godot 4.4.1, import + headless smoke). Наличие файла не означает успешного выполнения Actions.
+- Windows export: `godot/export_presets.cfg`, инструкция `docs/BUILD.md`.
+- Нужна реальная Windows GUI проверка P001-P004; только после неё можно завершить эти этапы.
 
 ## Следующий шаг
 
