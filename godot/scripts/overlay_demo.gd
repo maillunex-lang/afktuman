@@ -14,6 +14,8 @@ var overlay_enabled := true
 var garage: Window
 var toggle_button: Button
 var fps_button: Button
+var status_label: Label
+var spray_enabled := true
 
 func _ready() -> void:
     get_viewport().transparent_bg = true
@@ -35,6 +37,8 @@ func _process(delta: float) -> void:
     var usable := DisplayServer.screen_get_usable_rect(screen)
     if usable != last_usable_rect:
         _position_above_taskbar()
+    if not overlay_enabled:
+        return
     tractor_x += direction * SPEED * delta
     wheel_phase += delta * 8.0
     if tractor_x > float(WINDOW_WIDTH) - 125.0:
@@ -43,8 +47,7 @@ func _process(delta: float) -> void:
     elif tractor_x < 15.0:
         tractor_x = 15.0
         direction = 1.0
-    if overlay_enabled:
-        queue_redraw()
+    queue_redraw()
 
 func _unhandled_key_input(event: InputEvent) -> void:
     if event is InputEventKey and event.pressed and event.keycode == KEY_ESCAPE:
@@ -66,8 +69,9 @@ func _draw() -> void:
         draw_circle(Vector2(wheel_x, 25), 13.0, Color("28333e"))
         draw_circle(Vector2(wheel_x, 25), 5.0, Color("b7bec7"))
         draw_line(Vector2(wheel_x, 25), Vector2(wheel_x + cos(wheel_phase) * 9.0, 25 + sin(wheel_phase) * 9.0), Color("d9e1e9"), 2.0)
-    for i in range(3):
-        draw_circle(Vector2(92 + i * 7, 25 + i * 5), 2.0, Color(0.32, 0.82, 0.75, 0.7))
+    if spray_enabled:
+        for i in range(3):
+            draw_circle(Vector2(92 + i * 7, 25 + i * 5), 2.0, Color(0.32, 0.82, 0.75, 0.7))
     draw_set_transform(Vector2.ZERO)
 
 func _position_above_taskbar() -> void:
@@ -87,7 +91,7 @@ func _create_control_window() -> void:
     # Separate native window: unlike the overlay, this window remains clickable.
     garage = Window.new()
     garage.title = "Туман | Управление прототипом"
-    garage.size = Vector2i(310, 210)
+    garage.size = Vector2i(340, 270)
     garage.unresizable = true
     garage.transparent = false
     garage.borderless = false
@@ -110,6 +114,9 @@ func _create_control_window() -> void:
     var heading := Label.new()
     heading.text = "ТУМАН: технический прототип"
     layout.add_child(heading)
+    status_label = Label.new()
+    status_label.text = "Режим: патруль | 30 FPS"
+    layout.add_child(status_label)
     var hint := Label.new()
     hint.text = "Оверлей пропускает клики.\nЭто окно оставь для управления."
     layout.add_child(hint)
@@ -121,6 +128,14 @@ func _create_control_window() -> void:
     fps_button.text = "FPS: 30 (переключить)"
     fps_button.pressed.connect(_toggle_fps)
     layout.add_child(fps_button)
+    var spray_button := Button.new()
+    spray_button.text = "Распыление: вкл."
+    spray_button.pressed.connect(func() -> void:
+        spray_enabled = not spray_enabled
+        spray_button.text = "Распыление: вкл." if spray_enabled else "Распыление: выкл."
+        queue_redraw()
+    )
+    layout.add_child(spray_button)
     var quit_button := Button.new()
     quit_button.text = "Выход из игры"
     quit_button.pressed.connect(func() -> void: get_tree().quit())
@@ -130,11 +145,15 @@ func _create_control_window() -> void:
 func _toggle_overlay() -> void:
     overlay_enabled = not overlay_enabled
     toggle_button.text = "Скрыть Тумана" if overlay_enabled else "Показать Тумана"
+    if is_instance_valid(status_label):
+        status_label.text = "Режим: %s | %d FPS" % ["патруль" if overlay_enabled else "скрыт", Engine.max_fps]
     queue_redraw()
 
 func _toggle_fps() -> void:
     Engine.max_fps = 15 if Engine.max_fps == 30 else 30
     fps_button.text = "FPS: %d (переключить)" % Engine.max_fps
+    if is_instance_valid(status_label):
+        status_label.text = "Режим: %s | %d FPS" % ["патруль" if overlay_enabled else "скрыт", Engine.max_fps]
 
 func _on_garage_close_requested() -> void:
     # Closing the control window exits: never strand an unclickable overlay.
