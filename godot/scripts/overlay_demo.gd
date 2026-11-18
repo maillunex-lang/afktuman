@@ -11,6 +11,11 @@ const TASKBAR_OVERLAP := 14
 var last_usable_rect := Rect2i()
 var tractor_x := 80.0
 var direction := 1.0
+const TURN_DURATION := 0.32
+var turning := false
+var turn_elapsed := 0.0
+var turn_from := 1.0
+var facing_scale := 1.0
 var wheel_phase := 0.0
 var overlay_enabled := true
 var garage: Window
@@ -51,17 +56,25 @@ func _process(delta: float) -> void:
         _position_above_taskbar()
     if not overlay_enabled or paused:
         return
-    tractor_x += direction * SPEED * delta
-    wheel_phase += delta * 8.0
-    # Center-based movement. Flipping around the center never shifts the sprite.
-    var right_bound := float(WINDOW_WIDTH) - 65.0
-    var left_bound := 65.0
-    if tractor_x >= right_bound:
-        tractor_x = right_bound
-        direction = -1.0
-    elif tractor_x <= left_bound:
-        tractor_x = left_bound
-        direction = 1.0
+    if turning:
+        turn_elapsed = minf(turn_elapsed + delta, TURN_DURATION)
+        # Turn in place: no position jump and no instantaneous mirroring.
+        var t := turn_elapsed / TURN_DURATION
+        facing_scale = lerpf(turn_from, -turn_from, smoothstep(0.0, 1.0, t))
+        if turn_elapsed >= TURN_DURATION:
+            turning = false
+            direction = -turn_from
+            facing_scale = direction
+    else:
+        tractor_x += direction * SPEED * delta
+        wheel_phase += delta * 8.0
+        var right_bound := float(WINDOW_WIDTH) - 65.0
+        var left_bound := 65.0
+        if tractor_x >= right_bound or tractor_x <= left_bound:
+            tractor_x = clampf(tractor_x, left_bound, right_bound)
+            turning = true
+            turn_elapsed = 0.0
+            turn_from = direction
     queue_redraw()
 
 func _unhandled_key_input(event: InputEvent) -> void:
@@ -74,7 +87,7 @@ func _draw() -> void:
     var x := tractor_x
     # Wheels visually overlap the taskbar top by a few pixels.
     var y := 30.0
-    draw_set_transform(Vector2(x, y), 0.0, Vector2(direction * SPRAYER_SCALE, SPRAYER_SCALE))
+    draw_set_transform(Vector2(x, y), 0.0, Vector2(facing_scale * SPRAYER_SCALE, SPRAYER_SCALE))
     if sprayer_atlas != null:
         _draw_atlas_sprayer()
         draw_set_transform(Vector2.ZERO)
@@ -290,7 +303,7 @@ func _draw_layered_sprayer() -> void:
     for i in range(3):
         var center := Vector2(left + centers[i].x * width / 1536.0, top + centers[i].y * height / 614.0)
         var wheel_size := 2.0 * 138.0 * width / 1536.0
-        draw_set_transform(Vector2(tractor_x, 30.0) + Vector2(direction * SPRAYER_SCALE * center.x, SPRAYER_SCALE * center.y), wheel_phase * direction, Vector2(direction * SPRAYER_SCALE, SPRAYER_SCALE))
+        draw_set_transform(Vector2(tractor_x, 30.0) + Vector2(facing_scale * SPRAYER_SCALE * center.x, SPRAYER_SCALE * center.y), wheel_phase * direction, Vector2(direction * SPRAYER_SCALE, SPRAYER_SCALE))
         draw_texture_rect(sprayer_wheels[i], Rect2(-wheel_size * 0.5, -wheel_size * 0.5, wheel_size, wheel_size), false)
     draw_set_transform(Vector2(tractor_x + 55.0, 30.0), 0.0, Vector2(direction * SPRAYER_SCALE, SPRAYER_SCALE))
 
