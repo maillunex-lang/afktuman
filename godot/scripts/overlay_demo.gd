@@ -25,12 +25,11 @@ func _ready() -> void:
     window.always_on_top = true
     Engine.max_fps = 30
     _position_above_taskbar()
+    if DisplayServer.get_name() == "headless":
+        return
     _create_control_window()
-    # Do not enable click-through unless the separate control window was created.
-    if is_instance_valid(garage):
+    if garage.get_window_id() != DisplayServer.INVALID_WINDOW_ID:
         window.set_flag(Window.FLAG_MOUSE_PASSTHROUGH, true)
-    # P001: use the Windows usable rectangle instead of assuming screen size/DPI.
-    # The click-through flag remains OFF until an independent control path exists.
 
 func _process(delta: float) -> void:
     var screen := DisplayServer.window_get_current_screen()
@@ -83,13 +82,15 @@ func _position_above_taskbar() -> void:
     var window := get_window()
     # Anchor to the bottom-right of the usable area, not the monitor boundary.
     # On non-bottom taskbars this means inside the usable desktop area.
-    var target_x := usable.position.x + max(0, usable.size.x - WINDOW_WIDTH - EDGE_MARGIN)
-    var target_y := usable.position.y + max(0, usable.size.y - WINDOW_HEIGHT - EDGE_MARGIN)
+    var target_x := usable.position.x + maxi(0, usable.size.x - WINDOW_WIDTH - EDGE_MARGIN)
+    var target_y := usable.position.y + maxi(0, usable.size.y - WINDOW_HEIGHT - EDGE_MARGIN)
     window.position = Vector2i(target_x, target_y)
 
 func _create_control_window() -> void:
     # Separate native window: unlike the overlay, this window remains clickable.
     garage = Window.new()
+    garage.visible = false
+    garage.force_native = true
     garage.title = "Туман | Управление прототипом"
     garage.size = Vector2i(340, 270)
     garage.unresizable = true
@@ -102,12 +103,12 @@ func _create_control_window() -> void:
     garage.position = usable.position + Vector2i(30, 30)
 
     var margin := MarginContainer.new()
-    margin.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
     margin.add_theme_constant_override("margin_left", 14)
     margin.add_theme_constant_override("margin_top", 12)
     margin.add_theme_constant_override("margin_right", 14)
     margin.add_theme_constant_override("margin_bottom", 12)
     garage.add_child(margin)
+    margin.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 
     var layout := VBoxContainer.new()
     margin.add_child(layout)

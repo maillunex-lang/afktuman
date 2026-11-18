@@ -1,9 +1,16 @@
 name: Godot project validation
+
 on:
   push:
     branches: [main]
   pull_request:
   workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  GODOT_VERSION: 4.7.2-stable
 
 jobs:
   headless-check:
@@ -11,14 +18,45 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
-      - name: Install Godot 4.4.1 headless binary
+      - name: Download Godot and matching export templates
+        shell: bash
         run: |
-          curl -fL --retry 3 -o godot.zip https://github.com/godotengine/godot/releases/download/4.4.1-stable/Godot_v4.4.1-stable_linux.x86_64.zip
-          unzip -q godot.zip
-          chmod +x Godot_v4.4.1-stable_linux.x86_64
-      - name: Import project and parse scripts
+          release="https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}"
+          engine="Godot_v${GODOT_VERSION}_linux.x86_64"
+          curl -fLsS --retry 3 -o "$RUNNER_TEMP/godot.zip" "$release/$engine.zip"
+          unzip -q "$RUNNER_TEMP/godot.zip" -d "$RUNNER_TEMP"
+          chmod +x "$RUNNER_TEMP/$engine"
+          echo "GODOT_BIN=$RUNNER_TEMP/$engine" >> "$GITHUB_ENV"
+          curl -fLsS --retry 3 -o "$RUNNER_TEMP/templates.tpz" "$release/Godot_v${GODOT_VERSION}_export_templates.tpz"
+          templates="$HOME/.local/share/godot/export_templates/${GODOT_VERSION/-/.}"
+          mkdir -p "$templates"
+          unzip -q -j "$RUNNER_TEMP/templates.tpz" 'templates/windows_release_x86_64.exe' -d "$templates"
+      - name: Import, start, and export
+        shell: bash
         run: |
-          ./Godot_v4.4.1-stable_linux.x86_64 --headless --path godot --editor --import --quit
-      - name: Smoke test project startup
-        run: |
-          ./Godot_v4.4.1-stable_linux.x86_64 --headless --path godot --quit-after 5
+          checked_godot() {
+            local log
+            log="$(mktemp)"
+            if ! "$GODOT_BIN" "$@" > "$log" 2>&1; then
+              cat "$log"
+              return 1
+            fi
+            cat "$log"
+            if grep -qE 'ERROR:' "$log"; then
+              return 1
+            fi
+          }
+          checked_godot --headless --path godot --editor --import --quit
+          checked_godot --headless --path godot --quit-after 12
+          mkdir -p dist
+          checked_godot --headless --path godot --export-release "Windows Desktop" "$PWD/dist/TumanPrototype.exe"
+          test -s dist/TumanPrototype.exe
+          test -s dist/TumanPrototype.pck
+      - name: Upload portable Windows x64 build
+        uses: actions/upload-artifact@v4
+        with:
+          name: TumanPrototype-Windows-x64
+          path: |
+            dist/TumanPrototype.exe
+            dist/TumanPrototype.pck
+          if-no-files-found: error
