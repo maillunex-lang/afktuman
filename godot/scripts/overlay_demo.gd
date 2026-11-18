@@ -27,6 +27,8 @@ var paused := false
 var tray: StatusIndicator
 var tray_menu: PopupMenu
 var tray_available := false
+var meshy_strip: Texture2D
+var spray_phase := 0.0
 var sprayer_atlas: Texture2D
 var sprayer_body: Texture2D
 var sprayer_wheels: Array[Texture2D] = []
@@ -68,6 +70,7 @@ func _process(delta: float) -> void:
     else:
         tractor_x += direction * SPEED * delta
         wheel_phase += delta * 8.0
+        spray_phase += delta * 7.0
         var right_bound := float(WINDOW_WIDTH) - 65.0
         var left_bound := 65.0
         if tractor_x >= right_bound or tractor_x <= left_bound:
@@ -87,6 +90,9 @@ func _draw() -> void:
     var x := tractor_x
     # Wheels visually overlap the taskbar top by a few pixels.
     var y := 30.0
+    if meshy_strip != null:
+        _draw_meshy_sprayer()
+        return
     draw_set_transform(Vector2(x, y), 0.0, Vector2(facing_scale * SPRAYER_SCALE, SPRAYER_SCALE))
     if sprayer_atlas != null:
         _draw_atlas_sprayer()
@@ -276,6 +282,9 @@ func _show_garage() -> void:
 
 
 func _load_sprite_layers() -> void:
+    if ResourceLoader.exists("res://assets/sprayer/tuman_wheels_strip.png"):
+        meshy_strip = load("res://assets/sprayer/tuman_wheels_strip.png") as Texture2D
+        return
     var root_path := "res://assets/sprayer/"
     if ResourceLoader.exists(root_path + "atlas.png"):
         sprayer_atlas = load(root_path + "atlas.png") as Texture2D
@@ -347,3 +356,21 @@ func _hide_windows_from_taskbar() -> void:
     var helper_pid := OS.create_process("powershell.exe", args, false)
     if helper_pid <= 0:
         push_warning("Could not start Windows taskbar helper.")
+
+func _draw_meshy_sprayer() -> void:
+    # Pre-rendered Blender frames: realistic Meshy model, tiny runtime cost.
+    var frame := posmod(int(floor(wheel_phase * 8.0 / TAU)), 8)
+    var src := Rect2(frame * 256.0, 0.0, 256.0, 112.0)
+    var w := 112.0
+    var h := 49.0
+    var center := Vector2(tractor_x, 26.0)
+    draw_set_transform(center, 0.0, Vector2(facing_scale, 1.0))
+    draw_texture_rect_region(meshy_strip, Rect2(-w * 0.5, -24.0, w, h), src)
+    if spray_enabled and not paused and not turning:
+        # Animated droplets emerge from the boom on the left of the sprayer.
+        for i in range(8):
+            var phase := fposmod(spray_phase + float(i) * 0.67, 1.0)
+            var drop_x := -49.0 + float(i % 4) * 9.0
+            var drop_y := 1.0 + phase * 17.0
+            draw_circle(Vector2(drop_x, drop_y), 0.9 + phase * 0.4, Color(0.40, 0.82, 0.95, (1.0 - phase) * 0.65))
+    draw_set_transform(Vector2.ZERO)
