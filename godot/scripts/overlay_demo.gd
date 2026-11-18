@@ -3,6 +3,17 @@ extends Node2D
 ## The overlay becomes click-through only after a separate, always-accessible control window exists.
 
 const SPEED := 52.0
+const METERS_PER_COIN := 10.0
+const SAVE_PATH := "user://save.json"
+var coins := 0
+var distance_m := 0.0
+var reward_progress := 0.0
+var engine_level := 1
+var autosave_elapsed := 0.0
+var coins_label: Label
+var distance_label: Label
+var engine_label: Label
+var upgrade_button: Button
 const SPRAYER_SCALE := 0.40
 const WINDOW_WIDTH := 440
 const WINDOW_HEIGHT := 52
@@ -41,6 +52,7 @@ func _ready() -> void:
     window.always_on_top = true
     Engine.max_fps = 30
     _load_sprite_layers()
+    _load_progress()
     _position_above_taskbar()
     if DisplayServer.get_name() == "headless":
         return
@@ -58,6 +70,10 @@ func _process(delta: float) -> void:
         _position_above_taskbar()
     if not overlay_enabled or paused:
         return
+    autosave_elapsed += delta
+    if autosave_elapsed >= 30.0:
+        autosave_elapsed = 0.0
+        _save_progress()
     if turning:
         turn_elapsed = minf(turn_elapsed + delta, TURN_DURATION)
         # Turn in place: no position jump and no instantaneous mirroring.
@@ -68,7 +84,8 @@ func _process(delta: float) -> void:
             direction = -turn_from
             facing_scale = direction
     else:
-        tractor_x += direction * SPEED * delta
+        var before_x := tractor_x
+        tractor_x += direction * SPEED * pow(1.05, engine_level - 1) * delta
         wheel_phase += delta * 8.0
         spray_phase += delta * 7.0
         var right_bound := float(WINDOW_WIDTH) - 65.0
@@ -78,10 +95,84 @@ func _process(delta: float) -> void:
             turning = true
             turn_elapsed = 0.0
             turn_from = direction
+        _earn_distance(absf(tractor_x - before_x))
     queue_redraw()
+
+func _notification(what: int) -> void:
+    if what == NOTIFICATION_WM_CLOSE_REQUEST or what == NOTIFICATION_PREDELETE:
+        _save_progress()
+
+func _upgrade_cost() -> int:
+    return int(ceil(10.0 * pow(1.5, engine_level - 1)))
+
+func _earn_distance(amount: float) -> void:
+    if amount <= 0.0:
+        return
+    distance_m += amount
+    reward_progress += amount
+    var earned := int(floor(reward_progress / METERS_PER_COIN))
+    if earned > 0:
+        reward_progress -= float(earned) * METERS_PER_COIN
+        coins += earned
+    _refresh_progress_ui()
+
+func _upgrade_engine() -> void:
+    var cost := _upgrade_cost()
+    if coins < cost:
+        return
+    coins -= cost
+    engine_level += 1
+    _refresh_progress_ui()
+    _save_progress()
+
+func _refresh_progress_ui() -> void:
+    if not is_instance_valid(coins_label):
+        return
+    coins_label.text = "Монеты: %d" % coins
+    distance_label.text = "Пройдено: %.1f м" % distance_m
+    engine_label.text = "Двигатель: уровень %d | скорость +%.1f%%" % [engine_level, (pow(1.05, engine_level - 1) - 1.0) * 100.0]
+    upgrade_button.text = "Улучшить двигатель (%d монет)" % _upgrade_cost()
+    upgrade_button.disabled = coins < _upgrade_cost()
+
+func _save_progress() -> void:
+    var data := {
+        "version": 1,
+        "coins": coins,
+        "distance_m": distance_m,
+        "reward_progress": reward_progress,
+        "engine_level": engine_level
+    }
+    var file := FileAccess.open(SAVE_PATH, FileAccess.WRITE)
+    if file == null:
+        push_warning("Tuman: could not write save.json")
+        return
+    file.store_string(JSON.stringify(data))
+    file.close()
+
+func _load_progress() -> void:
+    if not FileAccess.file_exists(SAVE_PATH):
+        return
+    var file := FileAccess.open(SAVE_PATH, FileAccess.READ)
+    if file == null:
+        push_warning("Tuman: could not read save.json")
+        return
+    var parsed := JSON.parse_string(file.get_as_text())
+    file.close()
+    if not (parsed is Dictionary):
+        push_warning("Tuman: invalid save.json, starting new progress")
+        return
+    var data: Dictionary = parsed
+    if not (data.get("coins") is int or data.get("coins") is float) or not (data.get("distance_m") is int or data.get("distance_m") is float) or not (data.get("engine_level") is int or data.get("engine_level") is float):
+        push_warning("Tuman: save.json has invalid fields")
+        return
+    coins = maxi(0, int(data["coins"]))
+    distance_m = maxf(0.0, float(data["distance_m"]))
+    engine_level = clampi(int(data["engine_level"]), 1, 100)
+    reward_progress = clampf(float(data.get("reward_progress", 0.0)), 0.0, METERS_PER_COIN - 0.001)
 
 func _unhandled_key_input(event: InputEvent) -> void:
     if event is InputEventKey and event.pressed and event.keycode == KEY_ESCAPE:
+        _save_progress()
         get_tree().quit()
 
 func _draw() -> void:
@@ -154,7 +245,7 @@ func _create_control_window() -> void:
     garage.visible = false
     garage.force_native = true
     garage.title = "Туман | Управление прототипом"
-    garage.size = Vector2i(340, 270)
+    garage.size = Vector2i(360, 390)
     garage.unresizable = true
     garage.transparent = false
     garage.borderless = false
@@ -175,13 +266,23 @@ func _create_control_window() -> void:
     var layout := VBoxContainer.new()
     margin.add_child(layout)
     var heading := Label.new()
-    heading.text = "ТУМАН: технический прототип"
+    heading.text = "ТУМАН: Гараж"
     layout.add_child(heading)
     status_label = Label.new()
     status_label.text = "Режим: патруль | 30 FPS"
     layout.add_child(status_label)
+    coins_label = Label.new()
+    layout.add_child(coins_label)
+    distance_label = Label.new()
+    layout.add_child(distance_label)
+    engine_label = Label.new()
+    layout.add_child(engine_label)
+    upgrade_button = Button.new()
+    upgrade_button.pressed.connect(_upgrade_engine)
+    layout.add_child(upgrade_button)
+    _refresh_progress_ui()
     var hint := Label.new()
-    hint.text = "Оверлей пропускает клики.\nЭто окно оставь для управления."
+    hint.text = "Туман зарабатывает монеты во время патруля."
     layout.add_child(hint)
     toggle_button = Button.new()
     toggle_button.text = "Скрыть Тумана"
@@ -201,7 +302,10 @@ func _create_control_window() -> void:
     layout.add_child(spray_button)
     var quit_button := Button.new()
     quit_button.text = "Выход из игры"
-    quit_button.pressed.connect(func() -> void: get_tree().quit())
+    quit_button.pressed.connect(func() -> void:
+        _save_progress()
+        get_tree().quit()
+    )
     layout.add_child(quit_button)
     # Garage remains hidden when a tray icon is available.
     if not DisplayServer.has_feature(DisplayServer.FEATURE_STATUS_INDICATOR):
