@@ -1,0 +1,24 @@
+name: Godot project validation
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  headless-check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Godot 4.4.1 headless binary
+        run: |
+          curl -fL --retry 3 -o godot.zip https://github.com/godotengine/godot/releases/download/4.4.1-stable/Godot_v4.4.1-stable_linux.x86_64.zip
+          unzip -q godot.zip
+          chmod +x Godot_v4.4.1-stable_linux.x86_64
+      - name: Import project and parse scripts
+        run: |
+          ./Godot_v4.4.1-stable_linux.x86_64 --headless --path godot --editor --import --quit
+      - name: Smoke test project startup
+        run: |
+          ./Godot_v4.4.1-stable_linux.x86_64 --headless --path godot --quit-after 5
