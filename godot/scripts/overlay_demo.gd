@@ -22,6 +22,8 @@ var paused := false
 var tray: StatusIndicator
 var tray_menu: PopupMenu
 var tray_available := false
+var sprayer_body: Texture2D
+var sprayer_wheels: Array[Texture2D] = []
 
 func _ready() -> void:
     get_viewport().transparent_bg = true
@@ -30,6 +32,7 @@ func _ready() -> void:
     window.transparent = true
     window.always_on_top = true
     Engine.max_fps = 30
+    _load_sprite_layers()
     _position_above_taskbar()
     if DisplayServer.get_name() == "headless":
         return
@@ -66,6 +69,10 @@ func _draw() -> void:
     # Wheels visually overlap the taskbar top by a few pixels.
     var y := 30.0
     draw_set_transform(Vector2(x + 55.0, y), 0.0, Vector2(direction * SPRAYER_SCALE, SPRAYER_SCALE))
+    if sprayer_body != null and sprayer_wheels.size() == 3:
+        _draw_layered_sprayer()
+        draw_set_transform(Vector2.ZERO)
+        return
     # Rounded orange chassis, slimmer cabin, glass, tank and folding boom.
     draw_colored_polygon(PackedVector2Array([
         Vector2(-57, -7), Vector2(-50, -16), Vector2(43, -16),
@@ -243,3 +250,32 @@ func _show_garage() -> void:
     garage.show()
     garage.grab_focus()
 
+
+func _load_sprite_layers() -> void:
+    var root_path := "res://assets/sprayer/"
+    var body_path := root_path + "body.png"
+    if not ResourceLoader.exists(body_path):
+        return
+    sprayer_body = load(body_path) as Texture2D
+    for i in range(1, 4):
+        var wheel_path := root_path + "wheel_%d.png" % i
+        if not ResourceLoader.exists(wheel_path):
+            sprayer_wheels.clear()
+            return
+        sprayer_wheels.append(load(wheel_path) as Texture2D)
+
+func _draw_layered_sprayer() -> void:
+    # Original image: 1536 x 614. Layers exported at 900 px wide.
+    # Draw inside the existing 0.40 transform, producing ~100 px vehicle.
+    var width := 250.0
+    var height := width * 614.0 / 1536.0
+    var left := -80.0
+    var top := -height + 39.0
+    draw_texture_rect(sprayer_body, Rect2(left, top, width, height), false)
+    var centers := [Vector2(609, 442), Vector2(884, 440), Vector2(1266, 442)]
+    for i in range(3):
+        var center := Vector2(left + centers[i].x * width / 1536.0, top + centers[i].y * height / 614.0)
+        var wheel_size := 2.0 * 138.0 * width / 1536.0
+        draw_set_transform(Vector2(tractor_x + 55.0, 30.0) + Vector2(direction * SPRAYER_SCALE * center.x, SPRAYER_SCALE * center.y), wheel_phase * direction, Vector2(direction * SPRAYER_SCALE, SPRAYER_SCALE))
+        draw_texture_rect(sprayer_wheels[i], Rect2(-wheel_size * 0.5, -wheel_size * 0.5, wheel_size, wheel_size), false)
+    draw_set_transform(Vector2(tractor_x + 55.0, 30.0), 0.0, Vector2(direction * SPRAYER_SCALE, SPRAYER_SCALE))
